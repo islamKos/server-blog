@@ -1,11 +1,14 @@
 import express from 'express'
 import mongoose from 'mongoose'
+import multer from 'multer'
 
 import {
   registerValidation,
   loginValidation,
   postCreateValidation,
 } from './validations.js'
+import handleValidationErrors from './utils/handleValidationErrors.js'
+
 import checkAuth from './utils/checkAuth.js'
 
 import { register, login, getMe } from './controllers/UserController.js'
@@ -26,18 +29,48 @@ mongoose
 
 const app = express()
 
-app.use(express.json())
+const storage = multer.diskStorage({
+  destination: (_, __, cb) => {
+    cb(null, 'uploads')
+  },
+  filename: (_, file, cb) => {
+    cb(null, file.originalname)
+  },
+})
 
-app.post('/auth/login', loginValidation, login)
-app.post('/auth/register', registerValidation, register)
+const upload = multer({ storage })
+
+app.use(express.json())
+app.use('/uploads', express.static('fuploads'))
+
+app.post('/auth/login', loginValidation, handleValidationErrors, login)
+app.post('/auth/register', registerValidation, handleValidationErrors, register)
 app.get('/auth/me', checkAuth, getMe)
 
 // Запросы постов
 app.get('/posts', getAll)
-app.post('/posts', checkAuth, postCreateValidation, create)
 app.get('/posts/:id', getOne)
 app.delete('/posts/:id', checkAuth, remove)
-app.patch('/posts/:id', checkAuth, update)
+app.post(
+  '/posts',
+  checkAuth,
+  handleValidationErrors,
+  postCreateValidation,
+  create
+)
+app.patch(
+  '/posts/:id',
+  checkAuth,
+  handleValidationErrors,
+  postCreateValidation,
+  update
+)
+
+app.post('/upload', checkAuth, upload.single('image'), (req, res) => {
+  res.json({
+    url: `/uploads/${req.file.originalname}`,
+  })
+})
 
 app.listen(3003, (err) => {
   if (err) {
